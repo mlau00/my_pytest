@@ -1,11 +1,20 @@
 import json
 import uuid
+import pytest
+import mock
 
+from app import models
+from app.database import db
 from app.models.task_model import TaskModel
 from app.models.user_model import UserModel
 
 
 def test_add_task(client, get_headers):
+    """
+    GIVEN endpoint to create task with name 'first task'
+    WHEN task is added to db
+    THEN verify response status code and return message - 'Task added'
+    """
     data = {
         'name': 'first task'
     }
@@ -14,6 +23,61 @@ def test_add_task(client, get_headers):
     res_data = response.get_json()
     assert response.status_code == 200
     assert res_data['message'] == 'Task added'
+
+
+# def test_add_task(client, get_headers, mocker):
+#     mock_data = {
+#         "body": [],
+#         "message": "Task added",
+#         "status": 200
+#     }
+#
+#     data = {
+#         'name': 'first task'
+#     }
+#
+#     # Create a mock response object with a .json() method that returns the mock data
+#
+#     mock_response = mocker.MagicMock()
+#     mock_response.json.return_value = mock_data
+#
+#     # Patch 'requests.post' to return the mock response
+#     mocker.patch("requests.post", return_value=mock_response)
+#
+#     # Call the function
+#     result = client.post('/tasks/add', data=json.dumps(data), headers=get_headers)
+#     res_data = result.get_json()
+#
+#     # Assertions to check if the returned data is as expected
+#     assert res_data == mock_data
+#     # assert isinstance(res_data, dict)
+#     assert res_data["message"] == "Task added"
+
+def test_add_task_with_mock(client, mocker):
+    mock_data = {
+        'name': 'first task'
+    }
+
+    # Create a mock task instance with the expected data
+    mock_task = TaskModel(name=mock_data['name'])
+    mock_task.id = 1  # Manually set the ID since it won't be auto-incremented in a mock
+
+    # Mock the add and commit methods of the SQLAlchemy session
+    mocker.patch('app.database.db.session.add')
+    mocker.patch('app.database.db.session.commit')
+
+    # Mock the query to return our mock_task when querying by ID
+    mocker.patch('app.database.db.session.query',
+                 return_value=mocker.MagicMock(filter_by=mocker.MagicMock(first=mock_task)))
+
+    # Call the function
+    response = client.post('/tasks/add', data=json.dumps(mock_data), headers={'Content-Type': 'application/json'})
+
+    assert response.status_code == 200
+
+    # Ensure db.session.add and db.session.commit were called once each
+    db.session.add.assert_called_once()
+    db.session.commit.assert_called_once()
 
 
 def test_show_all_tasks(client):
